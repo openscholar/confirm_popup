@@ -1,2 +1,69 @@
 <?php
+/**
+ *  Implementation of hook_menu()
+ */
+ 
+function confirm_popup_menu(){
 
+//Example link 
+$items['exampleconfirmform'] = array(
+      'title' => 'exampleconfirmform',
+      'page callback' => 'exampleconfirmform',
+      'access callback' => TRUE,
+      'type' => MENU_NORMAL_ITEM,
+  );
+ 
+ //Menu to handle ajax request for the confirmation form
+$items['cajaxform/%'] = array(
+      'title' => 'cajaxform',
+      'page callback' => 'cajaxform',
+	  'page arguments' => array(1),
+      'access callback' => TRUE,
+      'type' => MENU_CALLBACK,
+  ); 
+  return $items;
+}
+
+/**
+ *  Function to preprocess link to add ctools processed class
+ */
+function cl($text, $form, $alt){
+	ctools_include('ajax');
+	ctools_include('modal');
+	ctools_modal_add_js();
+	return ctools_modal_text_button(t($text), 'cajaxform/'.$form, t($alt));
+}
+
+/**
+ *  Callback function to handle ajax request
+ */
+function cajaxform($form){
+// Include the CTools tools that we need.
+  ctools_include('ajax');
+  ctools_include('modal');
+  ctools_modal_add_js();
+       $form_state = array(
+    'title' => t('Example Confirmation form'),
+    'ajax' => TRUE,
+  );
+  $output = ctools_modal_form_wrapper($form, $form_state);
+  ctools_ajax_render($output);
+}
+
+
+//Example confirmation form
+function example_form($form_state){
+	  $form = array(
+    'test1' => array('#type' => 'value', '#value' => 'test'),
+  );
+  $confirmation_message = t('Are you sure you want to delete.');
+  $cancel_path = '';
+  return confirm_form($form, $confirmation_message, $cancel_path);
+	
+}
+
+//Callback function to show link to popup confirmation box
+function exampleconfirmform(){
+return cl('confirmpoplink','example_form', 'alttitle' );
+
+}
