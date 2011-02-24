@@ -45,7 +45,9 @@ function cajaxform($form){
        $form_state = array(
     'title' => t('Example Confirmation form'),
     'ajax' => TRUE,
+	'args' => array('1'),
   );
+ // $test = array(1);
   $output = ctools_modal_form_wrapper($form, $form_state);
   ctools_ajax_render($output);
 }
@@ -64,6 +66,38 @@ function example_form($form_state){
 
 //Callback function to show link to popup confirmation box
 function exampleconfirmform(){
-return cl('confirmpoplink','example_form', 'alttitle' );
+  $output .= '<input type="submit" id="" class="ctools-use-modal" value ="' .t('Reuse layout') . '">';
+//return cl('confirmpoplink','example_form', 'alttitle' ).$output;
+	ctools_include('ajax');
+	ctools_include('modal');
+	ctools_modal_add_js();
+	/* drupal_add_js('$(document).ready(function(){
+
+//$("#testwe").click(alert("ok"));
+
+});','inline'); */
+return "<form >
+<input type='hidden' value='http://demo.expertdreams.com/drupal/cajaxform/node_delete_confirm' class='testwe-url'/>
+<input type='submit' id='testwe' class='ctools-use-modal' value='test'  />
+
+</form>";
+
+}
+
+
+function confirm_popup_form_alter(&$form, &$form_state, $form_id){
+
+
+ctools_include('ajax');
+ctools_include('modal');
+ctools_modal_add_js();
+$form['buttons']['delete']['#attributes']= array('class' => 'ctools-use-modal');
+$form['buttons']['delete']['#id']= 'testid';
+$form['buttons']['ctoolurl'] = array(
+					'#type'  => 'hidden',
+					'#value' => 'cajaxform/node_delete_confirm',
+					'#attributes'   =>  array('class' => 'testid-url'),
+
+);
 
 }
