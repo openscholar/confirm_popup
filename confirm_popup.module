@@ -14,10 +14,10 @@ $items['exampleconfirmform'] = array(
   );
  
  //Menu to handle ajax request for the confirmation form
-$items['cajaxform/%/%'] = array(
+$items['cajaxform/%'] = array(
       'title' => 'cajaxform',
       'page callback' => 'cajaxform',
-	  'page arguments' => array(1,2),
+	  'page arguments' => array('example_form', 1),
       'access callback' => TRUE,
       'type' => MENU_CALLBACK,
   ); 
@@ -27,19 +27,19 @@ $items['cajaxform/%/%'] = array(
 /**
  *  Function to preprocess link to add ctools processed class
  */
-function cl($text, $form, $alt){
+function cl($text, $link, $alt){
 	ctools_include('ajax');
 	ctools_include('modal');
 	ctools_modal_add_js();
-	return ctools_modal_text_button(t($text), 'cajaxform/'.$form, t($alt));
+	return ctools_modal_text_button(t($text), $link, t($alt));
 }
 
 /**
  *  Callback function to handle ajax request
  */
 function cajaxform($form_id, $nodeid){
-module_load_include('inc', 'node', 'node.pages');
-$node_load = node_load(arg($nodeid));
+$args = func_get_args();
+unset($args[0]);
 // Include the CTools tools that we need.
   ctools_include('ajax');
   ctools_include('modal');
@@ -47,19 +47,22 @@ $node_load = node_load(arg($nodeid));
        $form_state = array(
     'title' => t('Example Confirmation form'),
     'ajax' => TRUE,
-	'args' => array($node_load),
+	'args' => $args,
   );
 
  $output = ctools_modal_form_wrapper($form_id, $form_state);
+ $refresh = FALSE;
    if (empty($output)) {
     // empty $output signifies success, so we'll use it as our $commands
     // array.
     $output = array();
-    
-  $message =  theme('status_messages');
-    $output[] = ctools_modal_command_display(t('Node Deleted'), "<div>".$message."</div>");
+    $message =  theme('status_messages');
+    $output[] = ctools_modal_command_display(t('Message'), "<div>".$message."</div>");
+
+	
   }
   ctools_ajax_render($output);
+  
 }
 
 
@@ -68,47 +71,18 @@ function example_form(&$form_state, $test){
 	  $form = array(
     'test1' => array('#type' => 'value', '#value' => 'test'),
   );
-  $confirmation_message = t('Are you sure you want to delete.');
+  $confirmation_message = t('Are you sure you want to  dele.');
   $cancel_path = $test;
   return confirm_form($form, $confirmation_message, $cancel_path);
 	
 }
 
-//Callback function to show link to popup confirmation box
-function exampleconfirmform(){
-
-ctools_include('ajax');
-	ctools_include('modal');
-	ctools_modal_add_js();
- // $output .= '<input type="submit" id="" class="ctools-use-modal" value ="' .t('Reuse layout') . '">';
-return cl('confirmpoplink','user_login', 'alttitle' ).$output;
-	
-	/* drupal_add_js('$(document).ready(function(){
-
-//$("#testwe").click(alert("ok"));
-
-});','inline'); */
-return "<form >
-<input type='hidden' value='http://demo.expertdreams.com/drupal/cajaxform/example_form' class='testwe-url'/>
-<input type='submit' id='testwe' class='ctools-use-modal' value='test'  />
-
-</form>";
-
+function example_form_submit($form, &$form_state){
+	 
+	   $test1 = $form_state['values']['test1'];
+	 drupal_set_message('Confirmation message'. $test1);
 }
 
-
-function confirm_popup_form_alter(&$form, &$form_state, $form_id){
-ctools_include('ajax');
-ctools_include('modal');
-ctools_modal_add_js();
-global $base_path;
-$form['buttons']['delete']['#attributes']= array('class' => 'ctools-use-modal');
-$form['buttons']['delete']['#id']= 'testid';
-$form['buttons']['ctoolurl'] = array(
-					'#type'  => 'hidden',
-					'#value' => $base_path.'cajaxform/node_delete_confirm/'.arg(1),
-					'#attributes'   =>  array('class' => 'testid-url'),
-
-);
-} 
-
+function exampleconfirmform(){
+ return cl('testlink', 'cajaxform/1', 'testalt');
+}
