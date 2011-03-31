@@ -87,6 +87,19 @@ function confirm_popup_ajax_callback(){
   }
 }
 
+/**
+ * Implementation of hook_vsite_admin_links_alter.
+ */
+function confirm_popup_vsite_admin_link_alter(&$links, $type, $object) {
+	ctools_include('ajax');
+	ctools_include('modal');
+	ctools_modal_add_js();
+
+  $links['node-delete']['href'] = 'confirm_popup/nojs/'.$links['node-delete']['href'];
+  $links['node-delete']['attributes']['class'] .= ' ctools-use-modal';
+  $links['node-delete']['query'] = array();
+}
+
 //Example confirmation form
 function example_form(&$form_state, $test){
 	$form = array(
