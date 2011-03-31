@@ -5,84 +5,104 @@
 
 function confirm_popup_menu(){
 
-//Example link 
-$items['exampleconfirmform'] = array(
-      'title' => 'exampleconfirmform',
-      'page callback' => 'exampleconfirmform',
-      'access callback' => TRUE,
-      'type' => MENU_NORMAL_ITEM,
+  //Menu to handle ajax request for the confirmation form
+  $items['confirm_popup/%ctools_js'] = array(
+    'title' => 'cajaxform',
+    'page callback' => 'confirm_popup_ajax_callback',
+    'page arguments' => array(1),
+    'access arguments' => array('access content'),
+    'type' => MENU_CALLBACK,
   );
- 
- //Menu to handle ajax request for the confirmation form
-$items['cajaxform/%'] = array(
-      'title' => 'cajaxform',
-      'page callback' => 'cajaxform',
-	  'page arguments' => array('example_form', 1),
-      'access callback' => TRUE,
-      'type' => MENU_CALLBACK,
-  ); 
   return $items;
 }
 
 /**
  *  Function to preprocess link to add ctools processed class
  */
-function cl($text, $link, $alt){
+function confirm_popup_modal_link($text, $link, $alt){
 	ctools_include('ajax');
 	ctools_include('modal');
 	ctools_modal_add_js();
-	return ctools_modal_text_button(t($text), $link, t($alt));
+	return ctools_modal_text_button(t($text), 'confirm_popup/nojs/'.$link, t($alt));
 }
 
 /**
  *  Callback function to handle ajax request
  */
-function cajaxform($form_id, $nodeid){
-$args = func_get_args();
-unset($args[0]);
-// Include the CTools tools that we need.
-  ctools_include('ajax');
-  ctools_include('modal');
-  ctools_modal_add_js();
-       $form_state = array(
-    'title' => t('Example Confirmation form'),
-    'ajax' => TRUE,
-	'args' => $args,
-  );
+function confirm_popup_ajax_callback(){
+  // the entire path will be confirm_popup/(nojs|ajax)/path/to/other/page
+  $args = func_get_args();
+  $js = array_shift($args);
+  // Include the CTools tools that we need.
+  $path = implode('/', $args);
+  if ($js) {
+    if ($router_item = menu_get_item($path)) {
+      if ($router_item['access']) {
+        if ($router_item['file']) {
+          require_once($router_item['file']);
+        }
+        ctools_include('ajax');
+        ctools_include('modal');
+        ctools_modal_add_js();
 
- $output = ctools_modal_form_wrapper($form_id, $form_state);
- $refresh = FALSE;
-   if (empty($output)) {
-    // empty $output signifies success, so we'll use it as our $commands
-    // array.
-    $output = array();
-    $message =  theme('status_messages');
-    $output[] = ctools_modal_command_display(t('Message'), "<div>".$message."</div>");
+        // we're loading a form into a modal popup.
+        if ($router_item['page_callback'] == 'drupal_get_form') {
+          // get the form id from the page arguments
+          $form_id = array_shift($router_item['page_arguments']);
+          $form_state = array(
+            'title' => $router_item['title'],
+            'ajax' => TRUE,
+            // stuff the rest of the arguments into form_state,
+            // since that's where they need to be for ctools to work
+        		'args' => $router_item['page_arguments'],
+          );
 
-	
+          // get the ctools page now
+          $output = ctools_modal_form_wrapper($form_id, $form_state);
+          $refresh = FALSE;
+          if (empty($output)) {
+            // empty $output signifies success, so we'll use it as our $commands
+            // array.
+            $output = array();
+            $message =  theme('status_messages');
+            $output[] = ctools_modal_command_display(t('Message'), "<div>".$message."</div>");
+          }
+        }
+        else {
+          // this isn't a form at all! Or it's some wierd form that doesn't use drupal_get_form the way we
+          // expect it to. Just let them deal with it.
+          $output = call_user_func_array($router_item['page_callback'], $router_item['page_arguments']);
+        }
+        ctools_ajax_render($output);
+      }
+      else {
+        return MENU_ACCESS_DENIED;
+      }
+    }
+    return MENU_NOT_FOUND;
   }
-  ctools_ajax_render($output);
-  
+  else {
+    // we're not rendering with js. just load the page as if we were never here.
+    return menu_execute_active_handler($path);
+  }
 }
-
 
 //Example confirmation form
 function example_form(&$form_state, $test){
-	  $form = array(
+	$form = array(
     'test1' => array('#type' => 'value', '#value' => 'test'),
   );
   $confirmation_message = t('Are you sure you want to  dele.');
   $cancel_path = $test;
   return confirm_form($form, $confirmation_message, $cancel_path);
-	
+
 }
 
-function example_form_submit($form, &$form_state){
-	 
-	   $test1 = $form_state['values']['test1'];
-	 drupal_set_message('Confirmation message'. $test1);
+function example_form_submit($form, &$form_state) {
+  $test1 = $form_state['values']['test1'];
+  drupal_set_message('Confirmation message'. $test1);
 }
 
-function exampleconfirmform(){
- return cl('testlink', 'cajaxform/1', 'testalt');
+function exampleconfirmform() {
+  return cl('testlink', 'cajaxform/1', 'testalt');
 }
