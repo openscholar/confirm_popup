@@ -23,7 +23,9 @@ function confirm_popup_modal_link($text, $link, $alt){
 	ctools_include('ajax');
 	ctools_include('modal');
 	ctools_modal_add_js();
-	return ctools_modal_text_button(t($text), 'confirm_popup/nojs/'.$link, t($alt));
+	_confirm_popup_modal_settings();
+
+	return ctools_modal_text_button(t($text), 'confirm_popup/nojs/'.$link, t($alt), 'ctools-modal-confirm-popup-modal');
 }
 
 /**
@@ -52,6 +54,7 @@ function confirm_popup_ajax_callback(){
           $form_state = array(
             'title' => $router_item['title'],
             'ajax' => TRUE,
+            'confirm_popup' => TRUE,
             // stuff the rest of the arguments into form_state,
             // since that's where they need to be for ctools to work
         		'args' => $router_item['page_arguments'],
@@ -61,11 +64,18 @@ function confirm_popup_ajax_callback(){
           $output = ctools_modal_form_wrapper($form_id, $form_state);
           $refresh = FALSE;
           if (empty($output)) {
-            // empty $output signifies success, so we'll use it as our $commands
+            // empty $output signifies form submitted correctly, so we'll use it as our $commands
             // array.
             $output = array();
-            $message =  theme('status_messages');
-            $output[] = ctools_modal_command_display(t('Message'), "<div>".$message."</div>");
+          //  $message =  theme('status_messages');
+          //  $output[] = ctools_modal_command_display(t('Message'), "<div>".$message."</div>");
+            if ($form_state['values']['op'] == 'Cancel') {
+              $output[] = ctools_modal_command_dismiss();
+            }
+            elseif (isset($form_state['values']['op'])) {
+              // this could be anything, really.
+              $output[] = ctools_ajax_command_reload();
+            }
           }
         }
         else {
@@ -94,10 +104,48 @@ function confirm_popup_vsite_admin_link_alter(&$links, $type, $object) {
 	ctools_include('ajax');
 	ctools_include('modal');
 	ctools_modal_add_js();
+	_confirm_popup_modal_settings();
 
   $links['node-delete']['href'] = 'confirm_popup/nojs/'.$links['node-delete']['href'];
-  $links['node-delete']['attributes']['class'] .= ' ctools-use-modal';
+  $links['node-delete']['attributes']['class'] .= ' ctools-use-modal ctools-modal-confirm-popup-modal';
   $links['node-delete']['query'] = array();
+}
+
+function confirm_popup_form_alter(&$form, &$form_state, $form_id) {
+  if ($form_state['confirm_popup']) {
+    $form['actions']['cancel'] = array(
+      '#type' => 'submit',
+      '#value' => 'Cancel',
+    );
+
+    $form['#popup_submit'] = $form['#submit'];
+    $form['#submit'] = array('confirm_popup_submit');
+  }
+}
+
+function confirm_popup_submit($form, &$form_state) {
+  if ($form_state['values']['op'] == 'Cancel') {
+    return;
+  }
+  else {
+    foreach ($form['#popup_submit'] as $callback) {
+      if (function_exists($callback)) {
+        $callback($form, $form_state);
+      }
+    }
+  }
+}
+
+function _confirm_popup_modal_settings() {
+  drupal_add_js(array(
+    'confirm-popup-modal' => array(
+      'modalSize' => array(
+        'type' => 'fixed',
+        'width' => 100,
+        'height' => 100,
+      ),
+    ),
+  ), 'setting');
 }
 
 //Example confirmation form
