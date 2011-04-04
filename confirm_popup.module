@@ -38,13 +38,21 @@ function confirm_popup_preprocess_page(&$variables) {
     foreach ($matches as $k => $link) {
       if (strpos($link[1], 'confirm_popup') !== FALSE) {
         $patt_class = '~class="([^"]*)"~i';
-        preg_match($patt_class, $link[0], $class_orig);
-        $class = explode(' ', $class_orig[1]);
-        if (!in_array('ctools-use-modal', $class)) {
-          $class[] = 'ctools-use-modal';
-          $class[] = 'ctools-modal-confirm-popup-modal';
-          $class = implode(' ', $class);
-          $final = str_replace($class_orig[1], $class, $link[0]);
+        $count = preg_match($patt_class, $link[0], $class_orig);
+        if ($count) {
+          // the class tag exists already
+          $class = explode(' ', $class_orig[1]);
+          if (!in_array('ctools-use-modal', $class)) {
+            $class[] = 'ctools-use-modal';
+            $class[] = 'ctools-modal-confirm-popup-modal';
+            $class = implode(' ', $class);
+            $final = str_replace($class_orig[1], $class, $link[0]);
+            $data = str_replace($link[0], $final, $data);
+          }
+        }
+        else {
+          // the class tag doesn't exist. we need to add it.
+          $final = str_replace('">', '" class="ctools-use-modal ctools-modal-confirm-popup-modal">', $link[0]);
           $data = str_replace($link[0], $final, $data);
         }
       }
