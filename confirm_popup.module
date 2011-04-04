@@ -28,6 +28,30 @@ function confirm_popup_modal_link($text, $link, $alt){
 	return ctools_modal_text_button(t($text), 'confirm_popup/nojs/'.$link, t($alt), 'ctools-modal-confirm-popup-modal');
 }
 
+function confirm_popup_preprocess_page(&$variables) {
+  $pattern = '~<a[.]* href="(.*)"[^>]*>(.*)</a>~iU';
+
+  foreach ($variables as &$data) {
+    if (!is_string($data)) continue;
+    preg_match_all($pattern, $data, $matches, PREG_SET_ORDER);
+
+    foreach ($matches as $k => $link) {
+      if (strpos($link[1], 'confirm_popup') !== FALSE) {
+        $patt_class = '~class="([^"]*)"~i';
+        preg_match($patt_class, $link[0], $class_orig);
+        $class = explode(' ', $class_orig[1]);
+        if (!in_array('ctools-use-modal', $class)) {
+          $class[] = 'ctools-use-modal';
+          $class[] = 'ctools-modal-confirm-popup-modal';
+          $class = implode(' ', $class);
+          $final = str_replace($class_orig[1], $class, $link[0]);
+          $data = str_replace($link[0], $final, $data);
+        }
+      }
+    }
+  }
+}
+
 /**
  *  Callback function to handle ajax request
  */
@@ -35,7 +59,6 @@ function confirm_popup_ajax_callback(){
   // the entire path will be confirm_popup/(nojs|ajax)/path/to/other/page
   $args = func_get_args();
   $js = array_shift($args);
-  // Include the CTools tools that we need.
   $path = implode('/', $args);
   if ($js) {
     if ($router_item = menu_get_item($path)) {
@@ -43,6 +66,8 @@ function confirm_popup_ajax_callback(){
         if ($router_item['file']) {
           require_once($router_item['file']);
         }
+
+        // Include the CTools tools that we need.
         ctools_include('ajax');
         ctools_include('modal');
         ctools_modal_add_js();
@@ -64,7 +89,7 @@ function confirm_popup_ajax_callback(){
           $output = ctools_modal_form_wrapper($form_id, $form_state);
           $refresh = FALSE;
           if (empty($output)) {
-            // empty $output signifies form submitted correctly, so we'll use it as our $commands
+            // empty $output signifies we're not rendering a form, so we'll use it as our $commands
             // array.
             $output = array();
           //  $message =  theme('status_messages');
@@ -97,9 +122,15 @@ function confirm_popup_ajax_callback(){
   }
 }
 
+function node_confirm_popup_paths() {
+  return array(
+    'node/%/delete',
+  );
+}
+
 /**
  * Implementation of hook_vsite_admin_links_alter.
- */
+
 function confirm_popup_vsite_admin_link_alter(&$links, $type, $object) {
 	ctools_include('ajax');
 	ctools_include('modal');
@@ -110,7 +141,7 @@ function confirm_popup_vsite_admin_link_alter(&$links, $type, $object) {
   $links['node-delete']['attributes']['class'] .= ' ctools-use-modal ctools-modal-confirm-popup-modal';
   $links['node-delete']['query'] = array();
 }
-
+*/
 function confirm_popup_form_alter(&$form, &$form_state, $form_id) {
   if ($form_state['confirm_popup']) {
     $form['actions']['cancel'] = array(
@@ -136,6 +167,21 @@ function confirm_popup_submit($form, &$form_state) {
   }
 }
 
+function confirm_popup_purl_processor() {
+  $info = array();
+  $info['purl_confirm_popup_path'] = array(
+    'title' => t('Confirm Popup Path'),
+    'handler' => array(
+      'class' => 'purl_confirm_popup_path',
+      'file' => 'confirm_popup_purl_path.inc',
+      'path' => drupal_get_path('module', 'confirm_popup'),
+      'parent' => 'path',
+    ),
+  );
+
+  return $info;
+}
+
 function _confirm_popup_modal_settings() {
   drupal_add_js(array(
     'confirm-popup-modal' => array(
@@ -147,6 +193,17 @@ function _confirm_popup_modal_settings() {
     ),
   ), 'setting');
 }
+
+function _confirm_popup_get_confirm_paths() {
+  static $paths;
+
+  if (!isset($paths)) {
+    $paths = module_invoke_all('confirm_popup_paths');
+  }
+
+  return $paths;
+}
+
 
 //Example confirmation form
 function example_form(&$form_state, $test){
