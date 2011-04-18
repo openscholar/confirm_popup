@@ -1,6 +1,5 @@
 <?php
 
-//require_once ( drupal_get_path('module', 'purl') .'/includes/purl_path.inc');
 if (!class_exists('purl_confirm_popup_path')) {
 
   class purl_confirm_popup_path extends purl_path implements purl_processor {
@@ -23,6 +22,8 @@ if (!class_exists('purl_confirm_popup_path')) {
       // or it requires some options to be set on the links themselves
       // in order to be run.
       // so i gotta figure out how to make this attach itself in purl_get_normal_path?
+      if (!module_exists('confirm_popup')) return;
+
       if (in_array(_menu_find_router_path($path), _confirm_popup_get_confirm_paths())) {
       	ctools_include('ajax');
       	ctools_include('modal');
@@ -37,6 +38,7 @@ if (!class_exists('purl_confirm_popup_path')) {
         // i need to find some place else to do this.
 
         // theme somethingorother or javascript?
+        // ended up doing it in a preprocess_page hook
         $classes = explode(' ',$options['attributes']['class']);
         if (!in_array('ctools-use-modal', $classes)) {
           $classes[] = 'ctools-use-modal';

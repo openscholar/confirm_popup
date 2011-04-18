@@ -28,8 +28,20 @@ function confirm_popup_modal_link($text, $link, $alt){
 	return ctools_modal_text_button(t($text), 'confirm_popup/nojs/'.$link, t($alt), 'ctools-modal-confirm-popup-modal');
 }
 
+/**
+ * Implementation of hook_preprocess_page.
+ * Scans the entire page for links with confirm_popup
+ * in the path, then adds the necessary classes for modal
+ * functionality.
+ */
 function confirm_popup_preprocess_page(&$variables) {
-  $pattern = '~<a[.]* href="(.*)"[^>]*>(.*)</a>~iU';
+
+	ctools_include('ajax');
+	ctools_include('modal');
+	ctools_modal_add_js();
+	_confirm_popup_modal_settings();
+}
+/*  $pattern = '~<a[.]* href="(.*)"[^>]*>(.*)</a>~iU';
 
   foreach ($variables as &$data) {
     if (!is_string($data)) continue;
@@ -58,10 +70,14 @@ function confirm_popup_preprocess_page(&$variables) {
       }
     }
   }
-}
+}*/
 
 /**
- *  Callback function to handle ajax request
+ *  Callback function to handle ajax request.
+ *  Runs path through ctools functions to get
+ *  a modal form. If the function isn't a form,
+ *  it just passes on through. If hasn't been called
+ *  via AJAX, it just passes through.
  */
 function confirm_popup_ajax_callback(){
   // the entire path will be confirm_popup/(nojs|ajax)/path/to/other/page
@@ -130,6 +146,10 @@ function confirm_popup_ajax_callback(){
   }
 }
 
+/**
+ * Implementation of hook_confirm_popup_paths.
+ * Done on node's behalf.
+ */
 function node_confirm_popup_paths() {
   return array(
     'node/%/delete',
@@ -137,19 +157,9 @@ function node_confirm_popup_paths() {
 }
 
 /**
- * Implementation of hook_vsite_admin_links_alter.
-
-function confirm_popup_vsite_admin_link_alter(&$links, $type, $object) {
-	ctools_include('ajax');
-	ctools_include('modal');
-	ctools_modal_add_js();
-	_confirm_popup_modal_settings();
-
-  $links['node-delete']['href'] = 'confirm_popup/nojs/'.$links['node-delete']['href'];
-  $links['node-delete']['attributes']['class'] .= ' ctools-use-modal ctools-modal-confirm-popup-modal';
-  $links['node-delete']['query'] = array();
-}
-*/
+ * Implementation of hook_form_alter
+ * Change the Cancel link on the form into a proper button
+ */
 function confirm_popup_form_alter(&$form, &$form_state, $form_id) {
   if ($form_state['confirm_popup']) {
     $form['actions']['cancel'] = array(
@@ -162,6 +172,11 @@ function confirm_popup_form_alter(&$form, &$form_state, $form_id) {
   }
 }
 
+/**
+ * Wrapper for existing submit functions
+ * Allows us to check to see the user confirmed the action
+ * before sending it to the real submit handlers
+ */
 function confirm_popup_submit($form, &$form_state) {
   if ($form_state['values']['op'] == 'Cancel') {
     return;
@@ -175,6 +190,9 @@ function confirm_popup_submit($form, &$form_state) {
   }
 }
 
+/**
+ * Implementation of hook_purl_processor.
+ */
 function confirm_popup_purl_processor() {
   $info = array();
   $info['purl_confirm_popup_path'] = array(
@@ -195,11 +213,41 @@ function _confirm_popup_modal_settings() {
     'confirm-popup-modal' => array(
       'modalSize' => array(
         'type' => 'fixed',
-        'width' => 100,
-        'height' => 100,
+        'width' => 250,
+        'height' => 200,
       ),
     ),
+    'confirm_popup_links' => drupal_to_js(_confirm_popup_get_confirm_paths()),
   ), 'setting');
+
+  static $init = false;
+  if (!$init) {
+    drupal_add_js('
+    	Drupal.behaviors.confirm_popup = function () {
+    		Drupal.settings.confirm_popup_links = eval(Drupal.settings.confirm_popup_links);
+    	  $.each(Drupal.settings.confirm_popup_links, function (i, item) {
+    	  	// for every path we check against
+    	  	var frags = item.split("%");
+    	  	var links = $("body a");
+    	  	$.each(frags, function (i, item) {
+    	  		// filter the list of links by the path fragment
+    	  		links = links.filter("[href*="+item+"]");
+    	  	});
+
+    	  	var path = Drupal.settings.basePath+Drupal.settings.og.group_context.title+"/";
+    			links.each(function (i, item) {
+    				// add in the necessary path bits and classes
+    				item.href = item.href.replace(path, path+"confirm_popup/nojs/");
+    				item.className += " ctools-use-modal ctools-modal-confirm-popup-modal";
+    			});
+    	  });
+
+    	  // tell ctools to go. We don\'t know if ctools has already processed or not.
+      	Drupal.behaviors.ZZCToolsModal();
+      }'
+      ,'inline');
+    $init = true;
+  }
 }
 
 function _confirm_popup_get_confirm_paths() {
@@ -210,25 +258,4 @@ function _confirm_popup_get_confirm_paths() {
   }
 
   return $paths;
-}
-
-
-//Example confirmation form
-function example_form(&$form_state, $test){
-	$form = array(
-    'test1' => array('#type' => 'value', '#value' => 'test'),
-  );
-  $confirmation_message = t('Are you sure you want to  dele.');
-  $cancel_path = $test;
-  return confirm_form($form, $confirmation_message, $cancel_path);
-
-}
-
-function example_form_submit($form, &$form_state) {
-  $test1 = $form_state['values']['test1'];
-  drupal_set_message('Confirmation message'. $test1);
-}
-
-function exampleconfirmform() {
-  return cl('testlink', 'cajaxform/1', 'testalt');
 }
