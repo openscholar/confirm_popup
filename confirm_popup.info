@@ -3,4 +3,3 @@ description = confirm forms in popup
 package = Chaos tool suite
 core = 6.x
 dependencies[] = ctools
-project = "ctools"

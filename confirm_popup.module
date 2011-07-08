@@ -17,16 +17,33 @@ function confirm_popup_menu(){
 }
 
 /**
+ * common jquery ui .dialog() options
+ */
+function confirm_popup_dialog_options(){
+  return array(
+    'width' => '1000',
+    'position' => array(
+      'center',
+      'center'
+    ),
+    'show' => 'slide, {direction: "down"},1000',
+    'resizable' => FALSE,
+    'closeText' => 'Close',
+  );
+}
+
+/**
  * Implementation of hook_preprocess_page.
  * Scans the entire page for links with confirm_popup
  * in the path, then adds the necessary classes for modal
  * functionality.
  */
-function confirm_popup_preprocess_page(&$variables) {
+function confirm_popup_preprocess_page(&$vars) {
 
 	ctools_include('ajax');
 	ctools_include('modal');
 	ctools_modal_add_js();
+	dialog_add_js();
 	_confirm_popup_modal_settings();
 }
 
@@ -53,6 +70,7 @@ function confirm_popup_ajax_callback(){
         ctools_include('ajax');
         ctools_include('modal');
         ctools_modal_add_js();
+        dialog_add_js();
 
         // we're loading a form into a modal popup.
         if ($router_item['page_callback'] == 'drupal_get_form') {
@@ -68,8 +86,7 @@ function confirm_popup_ajax_callback(){
           );
 
           // get the ctools page now
-          $output = ctools_modal_form_wrapper($form_id, $form_state);
-          $refresh = FALSE;
+          $output = dialog_form_wrapper($form_id, $form_state);
           if (empty($output)) {
             // empty $output signifies we're not rendering a form, so we'll use it as our $commands
             // array.
@@ -77,11 +94,23 @@ function confirm_popup_ajax_callback(){
           //  $message =  theme('status_messages');
           //  $output[] = ctools_modal_command_display(t('Message'), "<div>".$message."</div>");
             if ($form_state['values']['op'] == 'Cancel') {
-              $output[] = ctools_modal_command_dismiss();
+              $output[] = dialog_command_dismiss();
             }
             elseif (isset($form_state['values']['op'])) {
               // this could be anything, really.
-              $output[] = ctools_ajax_command_reload();
+              if (isset($form_state['redirect'])) {
+                $output[] = ctools_ajax_command_redirect($form_state['redirect'], 0);
+              }
+              else {
+                $output[] = ctools_ajax_command_reload();
+              }
+            }
+          }
+          else {
+            foreach ( $output as $i => $command ) {
+              if ($command['command'] == 'dialog_display') {
+                $output[$i]['options'] = confirm_popup_dialog_options();
+              }
             }
           }
         }
@@ -120,10 +149,20 @@ function node_confirm_popup_paths() {
  */
 function confirm_popup_form_alter(&$form, &$form_state, $form_id) {
   if ($form_state['confirm_popup']) {
+    $form['title'] = array(
+      '#type' => 'markup',
+      '#value' => drupal_set_title()."<br>",
+      '#weight' => -1,
+    );
+
+    unset($form['actions']['cancel']);
+
+    /*
     $form['actions']['cancel'] = array(
       '#type' => 'submit',
       '#value' => 'Cancel',
     );
+    */
 
     $form['#popup_submit'] = $form['#submit'];
     $form['#submit'] = array('confirm_popup_submit');
@@ -149,43 +188,32 @@ function confirm_popup_submit($form, &$form_state) {
 }
 
 function _confirm_popup_modal_settings() {
+  $vsite = vsite_get_vsite();
+
+  $s_base_path = '';//$GLOBALS['base_path'];
+  if($vsite->purl_provider == "spaces_og"){
+    $s_base_path .= $vsite->group->purl."/";
+  }
+
+  $vsite_domain = variable_get('vsite_domain_name',false);
+  if($vsite_domain){
+    $s_base_domain = "http://".$vsite_domain;
+  }else{
+    global $base_url;
+    $s_base_domain = variable_get('purl_base_domain', $base_url);
+  }
+
   drupal_add_js(array(
-    'confirm-popup-modal' => array(
-      'modalSize' => array(
-        'type' => 'fixed',
-        'width' => 250,
-        'height' => 200,
-      ),
-    ),
-    'confirm_popup_links' => drupal_to_js(_confirm_popup_get_confirm_paths()),
+
+    'confirm_popup' => array("links" => drupal_to_js(_confirm_popup_get_confirm_paths()),
+                             "base_path" => $s_base_path,
+                             "base_domain" => $s_base_domain),
   ), 'setting');
 
   static $init = false;
   if (!$init) {
-    drupal_add_js('
-    	Drupal.behaviors.confirm_popup = function () {
-    		Drupal.settings.confirm_popup_links = eval(Drupal.settings.confirm_popup_links);
-    	  $.each(Drupal.settings.confirm_popup_links, function (i, item) {
-    	  	// for every path we check against
-    	  	var frags = item.split("%");
-    	  	var links = $("body a");
-    	  	$.each(frags, function (i, item) {
-    	  		// filter the list of links by the path fragment
-    	  		links = links.filter("[href*="+item+"]");
-    	  	});
-
-    	  	var path = Drupal.settings.basePath+Drupal.settings.og.group_context.title+"/";
-    			links.each(function (i, item) {
-    				// add in the necessary path bits and classes
-    				item.href = item.href.replace(path, path+"confirm_popup/nojs/");
-    				item.className += " ctools-use-modal ctools-modal-confirm-popup-modal";
-    			});
-    	  });
-
-    	  // tell ctools to go. We don\'t know if ctools has already processed or not.
-      	Drupal.behaviors.ZZCToolsModal();
-      }'
-      ,'inline');
+    // TODO: refactor so it only loops through all the links in a page once.
+    drupal_add_js(drupal_get_path('module', 'confirm_popup').'/confirm_popup.js','module');
     $init = true;
   }
 }
